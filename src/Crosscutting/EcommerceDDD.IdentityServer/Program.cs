@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using EcommerceDDD.Core.Infrastructure.Identity;
 using EcommerceDDD.Core.Infrastructure;
+using EcommerceDDD.IdentityServer.Configurations;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -42,21 +43,37 @@ builder.Services.AddAuthorization(options =>
     options.DefaultPolicy = defaultAuthorizationPolicyBuilder.Build();
 });
 
-builder.Services.AddIdentityServer(opt => 
+builder.Services.AddIdentityServer(opt =>
     opt.IssuerUri = tokenIssuerSettings.GetValue<string>("Authority"))
+        opt.IssuerUri = tokenIssuerSettings.GetValue<string>("Authority"))
+    .AddDeveloperSigningCredential() // without a certificate, for dev only
     .AddDeveloperSigningCredential() // without a certificate, for dev only
     .AddAspNetIdentity<ApplicationUser>()
+    .AddInMemoryApiScopes(IdentityConfiguration.ApiScopes)
     .AddConfigurationStore(options =>
-    {
-        options.ConfigureDbContext = b => 
-            b.UseNpgsql(connectionString, sql => sql.MigrationsAssembly(migrationsAssembly));
-    })
+    .AddInMemoryApiResources(IdentityConfiguration.ApiResources)
+    .AddInMemoryClients(IdentityConfiguration.Clients)
     .AddOperationalStore(options =>
     {
+    {
         options.ConfigureDbContext = b => 
+        options.ConfigureDbContext = b => b.UseNpgsql(connectionString);
             b.UseNpgsql(connectionString, sql => sql.MigrationsAssembly(migrationsAssembly));
         options.EnableTokenCleanup = true;
+    })
+    })
+    .AddOperationalStore(options =>
+    .AddConfigurationStore(options =>
+    {
+    {
+        options.ConfigureDbContext = b => 
+        options.ConfigureDbContext = b =>
+            b.UseNpgsql(connectionString, sql => sql.MigrationsAssembly(migrationsAssembly));
+            b.UseNpgsql(connectionString, sql => sql.MigrationsAssembly(migrationsAssembly));
+        options.EnableTokenCleanup = true;
+    })
     });
+    .AddAspNetIdentity<ApplicationUser>();
 
 // ---- Cors
 builder.Services.AddCors(o =>
@@ -71,9 +88,6 @@ builder.Services.AddCors(o =>
 
 // ---- App
 var app = builder.Build();
-
-// Seeding default configuration
-DataSeeder.SeedConfiguration(app);
 
 app.UseCors("CorsPolicy");
 app.UseIdentityServer();
